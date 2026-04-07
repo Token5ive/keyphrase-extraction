@@ -51,7 +51,7 @@
 
 ## 3. Abstract 길이 분포
 
-![Abstract 길이 분포](assets/길이분포.png)
+![Abstract 길이 분포](assets/abstract_length_dist.png)
 
 | 통계 항목 | 값 |
 |----------|-----|
@@ -66,7 +66,7 @@
 
 ## 4. 문서당 Keyphrase 개수 분포
 
-![문서당 KP 개수 분포](assets/KP개수.png)
+![문서당 KP 개수 분포](assets/kp_count_dist.png)
 
 | 통계 항목 | 값 |
 |----------|-----|
@@ -81,7 +81,7 @@
 
 ## 5. PRMU 비율
 
-![PRMU 비율](assets/prmu.png)
+![PRMU 비율](assets/prmu_ratio_dist.png)
 
 | 분류 | 설명 | 개수 | 비율 |
 |------|------|------|------|
@@ -97,7 +97,7 @@
 
 ## 6. KP 하나당 단어 수 분포
 
-![KP 하나당 단어 수 분포](assets/KP당%20단어개수.png)
+![KP 하나당 단어 수 분포](assets/kp_word_count_dist.png)
 
 | 통계 항목 | 값 |
 |----------|-----|
@@ -115,7 +115,7 @@
 
 ## 7. KP당 텍스트 길이 분포 (문자 수)
 
-![KP 텍스트 길이 분포](assets/KP당%20텍스트수.png)
+![KP 텍스트 길이 분포](assets/kp_text_count_dist.png)
 
 | 통계 항목 | 값 |
 |----------|-----|
