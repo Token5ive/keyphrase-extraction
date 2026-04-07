@@ -81,7 +81,7 @@
 
 ## 5. PRMU 비율
 
-![PRMU 비율](assets/prmu_ratio_dist.png)
+![PRMU 비율](assets/prmu_ratio.png)
 
 | 분류 | 설명 | 개수 | 비율 |
 |------|------|------|------|
@@ -115,7 +115,7 @@
 
 ## 7. KP당 텍스트 길이 분포 (문자 수)
 
-![KP 텍스트 길이 분포](assets/kp_text_count_dist.png)
+![KP 텍스트 길이 분포](assets/kp_text_length_dist.png)
 
 | 통계 항목 | 값 |
 |----------|-----|
