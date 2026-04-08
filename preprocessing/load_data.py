@@ -14,7 +14,7 @@ def load_kp20k():
 
 def load_inspec():
     """Inspec 데이터셋 로드 (test만 존재)"""
-    dataset = load_dataset("midas/inspec", "raw")
+    dataset = load_dataset("taln-ls2n/inspec")
     splits = {}
     
     # Inspec은 test split만 있음

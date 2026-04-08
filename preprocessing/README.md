@@ -7,7 +7,7 @@
 | 데이터셋 | 용도 | Split | HuggingFace |
 |---------|------|-------|-------------|
 | **KP20k** | 학습/검증/평가 | train, validation, test | `taln-ls2n/kp20k` |
-| **Inspec** | 평가 전용 | test | `midas/inspec` |
+| **Inspec** | 평가 전용 | test | `taln-ls2n/inspec` |
 
 ## 📦 필수 라이브러리 설치
 
