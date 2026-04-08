@@ -1,0 +1,8 @@
+datasets==2.19.0
+transformers>=4.42.0
+torch>=2.0.0
+pandas>=2.0.0
+nltk>=3.8.1
+tqdm>=4.66.0
+accelerate>=0.30.0
+sentencepiece>=0.1.99
