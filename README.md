@@ -1,24 +1,23 @@
-# KP20k Keyphrase Generation Project
-
-KP20k 데이터셋을 사용해 전처리 → SciBART 파인튜닝 → 후보 생성까지 수행하는 프로젝트입니다.
-
 ## Project Structure
 
 ```bash
-project/
+keyphrase-extraction/
 │
-├─ data/
-│   ├─ processed/
-│   └─ candidates/
-│
-├─ outputs/
-│   └─ scibart_ckpt/
+├─ sampled_01_preprocessed/
+│   ├─ test/
+│   │   ├─ data-00000-of-00001.arrow
+│   │   ├─ dataset_info.json
+│   │   └─ state.json
+│   ├─ train/
+│   │   ├─ data-00000-of-00001.arrow
+│   │   ├─ dataset_info.json
+│   │   └─ state.json
+│   └─ validation/
+│   │   ├─ data-00000-of-00001.arrow
+│   │   ├─ dataset_info.json
+│   │   └─ state.json
 │
 ├─ src/
-│   ├─ preprocess/
-│   │   ├─ __init__.py
-│   │   └─ kp20k_preprocessor.py
-│   │
 │   ├─ training/
 │   │   ├─ __init__.py
 │   │   ├─ kp_dataset.py
@@ -28,25 +27,25 @@ project/
 │   │   ├─ __init__.py
 │   │   └─ candidate_generator.py
 │
-├─ run_preprocessing.py
+├─ results/
+│   ├─ predictions.json
+│   └─ predictions.csv
+│ 
 ├─ run_finetuning.py
 ├─ run_candidate_generation.py
 ├─ requirements.txt
-├─ setup_scibart.sh
 └─ README.md
 
-방법 1 (권장) SciBART 환경 자동 세팅
+1 가상 환경 생성
 ```bash
-bash setup_scibart.sh
+python -m venv .venv
 source .venv/bin/activate
 
-방법 2 (수동 설치)
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
+2 라이브러리 설치
+pip install -r requirements.txt
 
-pip install --upgrade pip
-pip install torch pandas datasets==2.19.0 tqdm nltk accelerate sentencepiece
+3 SciBART transformers 설치
+pip uninstall -y transformers
 
 git clone https://github.com/xiaowu0162/transformers.git -b scibart-integration
 cd transformers
@@ -54,26 +53,35 @@ pip install -e .
 cd ..
 
 
-Preprocessing Rules
-	•	입력 형식: title [SEP] abstract
-	•	필터링 기준: 
-	    •	abstract 단어 수 > 512 → 제거
-	    •	keyphrase 개수 > 15 → 제거
-	    •	중복 문서 제거 (title + abstract 기준)
-	•	keyphrase 처리:
-	    •	Porter Stemmer 적용
-	    •	Present / Absent 분리
-	•	출력 포맷: kp1 ; kp2 ; kp3
+데이터셋
+입력 데이터
+	- HuggingFace Arrow format (.arrow)
+	- 전처리 완료 데이터 사용
+Model: uclanlp/scibart-large
+Task: Seq2Seq Keyphrase Generation
+Tokenizer: SciBART tokenizer
 
 
+Training
+python run_finetuning.py
 
-# Summary
-이 프로젝트는 다음 파이프라인으로 구성됩니다:
+수행 과정
+1. .arrow 데이터 로드
+2. 컬럼 검증
+3. target_text 정규화 (list → string)
+4. 데이터 유효성 검사
+5. tokenizer 적용
+6. SciBART fine-tuning
+7. 모델 저장 (outputs/scibart/)
 
-Preprocessing
-   ↓
-SciBART Fine-tuning
-   ↓
-Candidate Generation
-   ↓
-(향후) Reranker
+
+Generation
+python run_candidate_generation.py
+
+수행 과정
+1. test 데이터 로드
+2. 학습된 모델 불러오기
+3. beam search 기반 keyphrase 생성
+4. 중복 제거
+5. present / absent 분리
+6. 결과 저장
