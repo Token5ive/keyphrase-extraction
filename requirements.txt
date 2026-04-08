@@ -1,8 +1,11 @@
-datasets==2.19.0
-transformers>=4.42.0
+# Core
 torch>=2.0.0
-pandas>=2.0.0
-nltk>=3.8.1
-tqdm>=4.66.0
-accelerate>=0.30.0
+datasets>=2.14.0
+accelerate>=0.24.0
+
+# NLP
 sentencepiece>=0.1.99
+
+# Utilities
+numpy>=1.23.0
+tqdm>=4.65.0
