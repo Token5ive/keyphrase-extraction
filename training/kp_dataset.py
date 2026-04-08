@@ -6,10 +6,9 @@ from datasets import Dataset
 
 @dataclass
 class Seq2SeqDatasetConfig:
-    input_col: str = "input_text"
-    target_col: str = "target_all_kps"
-    max_source_length: int = 512
-    max_target_length: int = 128
+    input_col: str = "source_text"
+    target_col: str = "target_text"
+    abstract_col: str = "abstract"
 
 
 class KeyphraseSeq2SeqDatasetBuilder:
@@ -17,29 +16,79 @@ class KeyphraseSeq2SeqDatasetBuilder:
         self.tokenizer = tokenizer
         self.config = config if config is not None else Seq2SeqDatasetConfig()
 
-    def _tokenize_function(self, examples):
-        model_inputs = self.tokenizer(
+    def _validate_required_columns(self, dataset: Dataset):
+        required_cols = {self.config.input_col, self.config.target_col, self.config.abstract_col}
+        missing = required_cols - set(dataset.column_names)
+
+        if missing:
+            raise ValueError(f"Missing columns: {missing}")
+
+    @staticmethod
+    def _is_nonempty_text(x):
+        return isinstance(x, str) and x.strip() != ""
+
+    def _normalize_target_text(self, example):
+        value = example[self.config.target_col]
+
+        if isinstance(value, str):
+            return example
+
+        try:
+            example[self.config.target_col] = " ; ".join(map(str, list(value)))
+            return example
+        except:
+            raise ValueError(f"Invalid target_text format: {type(value)}")
+
+    def _validate_dataset_strict(self, dataset: Dataset):
+        invalid = []
+
+        for i in range(len(dataset)):
+            ex = dataset[i]
+
+            if not self._is_nonempty_text(ex.get(self.config.abstract_col)):
+                invalid.append((i, "abstract"))
+
+            elif not self._is_nonempty_text(ex.get(self.config.input_col)):
+                invalid.append((i, "source_text"))
+
+            elif not self._is_nonempty_text(ex.get(self.config.target_col)):
+                invalid.append((i, "target_text"))
+
+        if invalid:
+            raise ValueError(
+                f"Invalid samples detected!\n"
+                f"count={len(invalid)}\n"
+                f"example={invalid[:5]}"
+            )
+
+        print(f"[Validation] OK (size={len(dataset)})")
+
+    def _tokenize(self, examples):
+        inputs = self.tokenizer(
             examples[self.config.input_col],
-            max_length=self.config.max_source_length,
-            truncation=True,
+            truncation=False,
             padding=False,
         )
 
         labels = self.tokenizer(
             text_target=examples[self.config.target_col],
-            max_length=self.config.max_target_length,
-            truncation=True,
+            truncation=False,
             padding=False,
         )
 
-        model_inputs["labels"] = labels["input_ids"]
-        return model_inputs
+        inputs["labels"] = labels["input_ids"]
+        return inputs
 
-    def build(self, df):
-        hf_dataset = Dataset.from_pandas(df, preserve_index=False)
-        tokenized_dataset = hf_dataset.map(
-            self._tokenize_function,
+    def build(self, dataset: Dataset):
+        self._validate_required_columns(dataset)
+
+        dataset = dataset.map(self._normalize_target_text)
+        self._validate_dataset_strict(dataset)
+
+        dataset = dataset.map(
+            self._tokenize,
             batched=True,
-            remove_columns=hf_dataset.column_names,
+            remove_columns=dataset.column_names,
         )
-        return tokenized_dataset
+
+        return dataset
