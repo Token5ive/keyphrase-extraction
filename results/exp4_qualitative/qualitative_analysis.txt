@@ -3,66 +3,66 @@
 [Example 0]
 =================================================================
 Title   : Narrow band region-based active contours and surfaces for 2D and 3D segmentation
-Gold KPs: ['active contours', '3d segmentation', 'deformable curves', 'level sets', 'image segmentation', 'energy minimization', 'gradient descent', 'deformable models', 'deformable curves and surfaces', 'medical image segmentation', 'deformable surfaces']
+Gold KPs: ['active contour', 'segmentation', 'deformable model', 'level sets', 'narrow band region energy', 'active surface']
 
 [KeyBERT Top-5] (코사인 유사도 기준, before MMR)
   ✓ [0.6749] deformable models
-  ✓ [0.6609] deformable curves and surfaces
-  ✓ [0.6572] 3d segmentation
-  ✓ [0.6484] deformable curves
-  ✓ [0.6456] deformable surfaces
+    [0.6609] deformable curves and surfaces
+    [0.6572] 3d segmentation
+    [0.6484] deformable curves
+    [0.6456] deformable surfaces
 
 [MMR Top-5] (λ=0.6, diversity 반영)
   ✓ deformable models
-  ✓ deformable curves and surfaces
-  ✓ medical image segmentation
+    deformable curves and surfaces
+    medical image segmentation
   ✓ level sets
   ✓ active contours
 
-  F1@5=0.6250  F1@M=0.4545
+  F1@5=0.5455  F1@M=0.5000
 
 
 =================================================================
 [Example 1]
 =================================================================
 Title   : Continuous input nonlocal games
-Gold KPs: ['continuous input', 'nonlocal game', 'entanglement', 'nonlocal games', 'continuous inputs', 'game theory', 'quantum games', 'monotonicity']
+Gold KPs: ['nonlocality', 'entanglement', 'quantum games', 'bell inequalities']
 
 [KeyBERT Top-5] (코사인 유사도 기준, before MMR)
-  ✓ [0.6731] nonlocal games
-  ✓ [0.6530] nonlocal game
-  ✓ [0.6336] game theory
+    [0.6731] nonlocal games
+    [0.6530] nonlocal game
+    [0.6336] game theory
   ✓ [0.6284] quantum games
-  ✓ [0.5851] continuous input
+    [0.5851] continuous input
 
 [MMR Top-5] (λ=0.6, diversity 반영)
-  ✓ nonlocal games
-  ✓ monotonicity
-  ✓ game theory
-  ✓ continuous input
+    nonlocal games
+    monotonicity
+    game theory
+    continuous input
   ✓ quantum games
 
-  F1@5=0.9091  F1@M=0.7143
+  F1@5=0.2222  F1@M=0.0000
 
 
 =================================================================
 [Example 2]
 =================================================================
 Title   : Managing critical success strategies for an enterprise resource planning project
-Gold KPs: ['critical success strategies', 'enterprise resource planning', 'optimization models', 'management matrix', 'critical success strategy', 'optimization model', 'strategic map', 'optimization', 'enterprise resource planning (erp)']
+Gold KPs: ['critical success strategies', 'enterprise resource planning project', 'optimization', 'objective hierarchy', 'multiattribute decision making', 'prioritization']
 
 [KeyBERT Top-5] (코사인 유사도 기준, before MMR)
-  ✓ [0.7042] management matrix
-  ✓ [0.7026] enterprise resource planning
+    [0.7042] management matrix
+    [0.7026] enterprise resource planning
   ✓ [0.6932] critical success strategies
   ✓ [0.6862] critical success strategy
-  ✓ [0.6720] optimization models
+    [0.6720] optimization models
 
 [MMR Top-5] (λ=0.6, diversity 반영)
-  ✓ management matrix
-  ✓ enterprise resource planning
+    management matrix
+    enterprise resource planning
   ✓ critical success strategies
-  ✓ optimization model
-  ✓ strategic map
+    optimization model
+    strategic map
 
-  F1@5=0.8333  F1@M=0.6250
+  F1@5=0.1818  F1@M=0.1667
