@@ -84,6 +84,34 @@ from preprocessing import run_pipeline
 results = run_pipeline(dataset="kp20k", save=True, base_save_path="custom_output")
 ```
 
+### 추론용 파이프라인
+
+**추론 시에는 keyphrases가 없으므로 별도의 파이프라인을 사용합니다.**
+
+```python
+from preprocessing import run_inference_pipeline
+import pandas as pd
+
+# 추론용 데이터 (title, abstract만 필요)
+inference_df = pd.DataFrame({
+    'title': ['Deep Learning for NLP', 'Neural Machine Translation'],
+    'abstract': ['This paper presents...', 'We propose a new method...']
+})
+
+# 추론용 전처리 실행
+result = run_inference_pipeline(inference_df, save=True, save_path="output/inference")
+
+# source_text 생성 확인
+print(result['source_text'][0])
+# 출력: "generate keyphrases: title: Deep Learning for NLP abstract: This paper presents..."
+```
+
+**주요 특징:**
+- `title`, `abstract` 컬럼만 필요 (keyphrases 불필요)
+- 고정 임계값 사용 (500단어)
+- 텍스트 정규화 자동 적용 (숫자/수식 치환, 공백 정리)
+- 필터링 후 문서가 없으면 경고 출력
+
 ---
 
 ## 📊 출력 데이터 구조
@@ -106,17 +134,29 @@ output/
 
 ### DataFrame 컬럼
 
+**학습용 (`run_pipeline`) - 전체 컬럼:**
+
 | 컬럼명 | 설명 | 예시 |
 |--------|------|------|
 | `id` | 문서 고유 ID | "2365347" |
-| `title` | 논문 제목 | "Deep Learning for NLP" |
-| `abstract` | 초록 텍스트 | "This paper presents..." |
+| `title` | 논문 제목 (정규화됨) | "Deep Learning for NLP" |
+| `abstract` | 초록 텍스트 (정규화됨) | "This paper presents..." |
 | `keyphrases` | 전체 키워드 리스트 | ["deep learning", "nlp"] |
 | `prmu` | Present/Absent 태그 | ["P", "A"] |
 | `present_kps` | 초록에 등장하는 키워드 | ["deep learning"] |
 | `absent_kps` | 초록에 없는 키워드 | ["nlp"] |
 | `source_text` | 모델 입력용 텍스트 | "generate keyphrases: title: ... abstract: ..." |
 | `target_text` | 모델 타겟용 텍스트 | "['deep learning' 'nlp']" |
+
+**추론용 (`run_inference_pipeline`) - 최소 컬럼:**
+
+| 컬럼명 | 설명 | 예시 |
+|--------|------|------|
+| `title` | 논문 제목 (정규화됨) | "Deep Learning for NLP" |
+| `abstract` | 초록 텍스트 (정규화됨) | "This paper presents..." |
+| `source_text` | 모델 입력용 텍스트 | "generate keyphrases: title: ... abstract: ..." |
+
+> **Note**: 정규화는 수식 치환(`<formula>`), 숫자 치환(`<digit>`), 공백 정리를 포함합니다.
 
 ### 예상 데이터 크기
 
@@ -142,12 +182,57 @@ output/
 
 ### 전처리 단계 순서
 
+**학습용 (run_pipeline):**
 1. 초록 없는 문서 제거
 2. 긴 문서 제거 (IQR 기준)
 3. 중복 문서 제거
 4. KP 많은 문서 제거 (95th percentile)
 5. 긴 단어 KP 제거 (95th percentile)
 6. 긴 문자 KP 제거 (IQR 기준)
+7. 텍스트 정규화 (수식 → 숫자 → 공백)
+
+**추론용 (run_inference_pipeline):**
+1. 초록 없는 문서 제거
+2. 긴 문서 제거 (고정값: 500단어)
+3. 중복 문서 제거
+4. 텍스트 정규화 (수식 → 숫자 → 공백)
+
+### 텍스트 정규화
+
+모든 title과 abstract에 자동으로 적용됩니다.
+
+#### 1. 수식 치환 → `<formula>`
+**처리 대상 (레벨 2: 균형적):**
+- **LaTeX 형식**: `$...$`, `$$...$$`, `\(...\)`, `\[...\]`
+- **그리스 문자**: α, β, γ, δ, ε, λ, μ, σ, θ, φ, ψ, ω 등
+- **수학 기호**: ∑, ∏, ∫, ∂, ∇, √, ∞, ≤, ≥, ≈, ≠ 등
+
+```python
+# 예시
+원본: "minimize $L = \sum_{i=1}^{n} x_i$ using α-divergence"
+처리: "minimize <formula> using <formula>-divergence"
+```
+
+#### 2. 숫자 치환 → `<digit>`
+정수 및 소수점 숫자를 모두 치환합니다.
+
+```python
+# 예시
+원본: "achieved 95.3% accuracy in 2024 with 1000 samples"
+처리: "achieved <digit>% accuracy in <digit> with <digit> samples"
+```
+
+#### 3. 공백 정규화
+연속된 공백/탭/개행을 단일 공백으로 통합하고 앞뒤 공백을 제거합니다.
+
+```python
+# 예시
+원본: "Deep   learning    for  NLP"
+처리: "Deep learning for NLP"
+```
+
+**처리 순서가 중요합니다:**
+`원본 텍스트` → `수식 치환` → `숫자 치환` → `공백 정규화` → `최종 텍스트`
 
 ---
 
@@ -197,20 +282,43 @@ print(thresholds)
 
 ### 3. 전처리 단계만 실행
 
+**학습용 전처리:**
 ```python
 from preprocessing.filter_data import run_preprocessing
 import pandas as pd
 
-df = pd.DataFrame(...)  # 원본 데이터
+df = pd.DataFrame(...)  # 원본 데이터 (keyphrases 필요)
 cleaned_df = run_preprocessing(df, split="train")
+```
+
+**추론용 전처리:**
+```python
+from preprocessing.filter_data import run_inference_preprocessing
+import pandas as pd
+
+df = pd.DataFrame({
+    'title': ['...'],
+    'abstract': ['...']
+})  # title, abstract만 필요
+cleaned_df = run_inference_preprocessing(df, split="inference")
 ```
 
 ### 4. 컬럼 생성만 하기
 
+**학습용 컬럼 생성:**
 ```python
 from preprocessing.build_column import build_columns
 
 df_with_columns = build_columns(cleaned_df)
+# source_text, target_text, present_kps, absent_kps 생성
+```
+
+**추론용 컬럼 생성:**
+```python
+from preprocessing.build_column import build_inference_columns
+
+df_with_columns = build_inference_columns(cleaned_df)
+# source_text만 생성
 ```
 
 ### 5. Arrow 포맷으로 저장
@@ -262,6 +370,53 @@ def main():
 
 if __name__ == "__main__":
     kp20k_data, inspec_data = main()
+```
+
+### 추론용 예시 코드
+
+```python
+# 추론 시 사용하는 예시
+import pandas as pd
+from preprocessing import run_inference_pipeline
+
+def inference_example():
+    # 추론할 논문 데이터 (title, abstract만 필요)
+    inference_df = pd.DataFrame({
+        'title': [
+            'Deep Learning for Natural Language Processing',
+            'Neural Machine Translation with Attention Mechanism'
+        ],
+        'abstract': [
+            'This paper presents a comprehensive study on deep learning methods...',
+            'We propose a novel neural machine translation architecture...'
+        ]
+    })
+    
+    print(f"입력 문서 수: {len(inference_df)}")
+    
+    # 추론용 전처리 실행
+    result = run_inference_pipeline(
+        inference_df,
+        save=True,
+        save_path="output/inference"
+    )
+    
+    print(f"전처리 후 문서 수: {len(result)}")
+    
+    # 결과 확인
+    if len(result) > 0:
+        print("\n[source_text 예시]")
+        print(result['source_text'][0][:100] + "...")
+        
+        # 모델 입력으로 사용
+        for idx, source in enumerate(result['source_text']):
+            print(f"\n문서 {idx+1} 준비 완료")
+            # model.generate(source) 등으로 키프레이즈 생성
+    else:
+        print("⚠️ 처리 가능한 문서가 없습니다!")
+
+if __name__ == "__main__":
+    inference_example()
 ```
 
 ---

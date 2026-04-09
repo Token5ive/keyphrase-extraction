@@ -154,3 +154,49 @@ def run_preprocessing(df, split="train"):
     print(f"  긴 문자 KP 제거 후      : {len(df):,}개")
 
     return df
+
+
+# ── 추론용 파이프라인 ────────────────────────────────────────────────────────────
+def run_inference_preprocessing(df, split="inference"):
+    """
+    추론용 전처리: keyphrases 없이 동작
+    
+    Args:
+        df (pd.DataFrame): title, abstract 컬럼만 있는 DataFrame
+        split (str): 로깅용 이름. 기본값: 'inference'
+    
+    Returns:
+        pd.DataFrame: 전처리된 DataFrame
+    
+    Note:
+        - keyphrases가 없어도 동작하도록 설계됨
+        - abstract 길이 임계값은 고정값 사용 (500 단어)
+        - 중복 제거 및 빈 abstract 제거만 수행
+    """
+    print(f"\n[{split}] 시작: {len(df):,}개")
+    
+    # abstract 관련 필터링만 수행
+    df = remove_no_abstract(df)
+    print(f"  초록 없는 문서 제거 후  : {len(df):,}개")
+    
+    if len(df) == 0:
+        print("  ⚠️ 경고: 모든 문서가 필터링되었습니다! (초록이 없는 문서만 있음)")
+        return df
+    
+    # 고정 임계값 사용 (학습 데이터 기준 일반적인 값)
+    max_words = 500
+    df = remove_long_docs(df, max_words)
+    print(f"  긴 문서 제거 후         : {len(df):,}개 (임계값: {max_words}단어)")
+    
+    if len(df) == 0:
+        print(f"  ⚠️ 경고: 모든 문서가 필터링되었습니다! (모두 {max_words}단어 초과)")
+        return df
+    
+    df = remove_duplicate_docs(df)
+    print(f"  중복 문서 제거 후       : {len(df):,}개")
+    
+    if len(df) == 0:
+        print("  ⚠️ 경고: 모든 문서가 필터링되었습니다! (모두 중복 문서)")
+        return df
+    
+    return df
