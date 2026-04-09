@@ -103,21 +103,60 @@ class Preprocessor:
         filtered = [c for c in cleaned if self.is_valid(c)]
         return self.deduplicate(filtered)
 
+    def process_with_positions(
+        self, candidates: list[str]
+    ) -> tuple[list[str], list[int]]:
+        """
+        전처리 후 원본 인덱스(생성 순서)를 함께 반환.
+
+        전처리(clean → filter → dedup) 과정에서 일부 후보가 제거되므로
+        살아남은 각 후보가 원래 몇 번째 위치였는지 추적한다.
+
+        Returns:
+            (processed_candidates, original_positions)
+            - processed_candidates : 전처리된 후보 리스트
+            - original_positions   : 각 후보의 원본 인덱스 (beam score proxy)
+        """
+        # clean 단계: 각 후보를 정제하되 원본 인덱스 유지
+        cleaned_with_idx = [
+            (i, self.clean(c)) for i, c in enumerate(candidates)
+        ]
+        # filter 단계
+        filtered = [(i, c) for i, c in cleaned_with_idx if self.is_valid(c)]
+
+        # deduplicate 단계: 순서 유지, 첫 등장 우선
+        import re
+        seen = set()
+        result_candidates, result_positions = [], []
+        for i, phrase in filtered:
+            key = re.sub(r'[-/]', ' ', phrase)
+            key = re.sub(r'\s+', ' ', key).strip()
+            if key not in seen:
+                seen.add(key)
+                result_candidates.append(phrase)
+                result_positions.append(i)
+
+        return result_candidates, result_positions
+
     def apply_to_records(self, records: list[dict], use_preprocess: bool = True) -> list[dict]:
         """
         레코드 리스트의 candidates 필드에 전처리 적용.
+
+        전처리 시 candidate_positions도 함께 업데이트한다.
 
         Args:
             records: DataLoader.load()가 반환한 레코드 리스트
             use_preprocess: True면 전처리 적용, False면 원본 유지
 
         Returns:
-            candidates가 업데이트된 새 레코드 리스트 (원본 불변).
+            candidates / candidate_positions가 업데이트된 새 레코드 리스트 (원본 불변).
         """
         result = []
         for rec in records:
             new_rec = dict(rec)
             if use_preprocess:
-                new_rec['candidates'] = self.process(rec['candidates'])
+                processed, positions = self.process_with_positions(rec['candidates'])
+                new_rec['candidates'] = processed
+                new_rec['candidate_positions'] = positions
             result.append(new_rec)
         return result

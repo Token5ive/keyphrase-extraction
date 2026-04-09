@@ -252,6 +252,106 @@ class Evaluator:
             )
         return results
 
+    def run_score_fusion(
+        self,
+        records: list[dict],
+        alpha: float,
+        mmr_lambda: float,
+        top_k: int = None,
+        desc: str = '',
+    ) -> dict:
+        """
+        Score Fusion + MMR 파이프라인을 레코드 전체에 실행.
+
+        각 후보의 재순위 점수:
+            fusion_score(i) = α × beam_score(i) + (1−α) × cosine_sim(doc, c_i)
+        MMR relevance 항에 fusion_score를 사용.
+
+        Args:
+            records    : DataLoader + Preprocessor를 거친 레코드 리스트
+                         (candidate_positions, n_candidates_original 필드 필요)
+            alpha      : beam score 가중치 (0.0=cosine only, 1.0=beam only)
+            mmr_lambda : MMR λ 값
+            top_k      : MMR 선택 수. None이면 Reranker 기본값 사용
+            desc       : tqdm 진행 표시 레이블
+
+        Returns:
+            지표 요약 dict
+        """
+        eval_k = self.eval_k
+        acc = _empty_acc()
+
+        label = desc or f'α={alpha:.2f} λ={mmr_lambda:.2f}'
+        for rec in tqdm(records, desc=label, leave=False):
+            document  = rec['document']
+            candidates = rec['candidates']
+            positions  = rec.get('candidate_positions', list(range(len(candidates))))
+            n_original = rec.get('n_candidates_original', len(candidates))
+            golds      = rec['keyphrases']
+
+            if not candidates:
+                for key in acc:
+                    acc[key].append(0.0)
+                continue
+
+            t_start = time.time()
+
+            final_kps, _ = self.reranker.run_score_fusion(
+                document=document,
+                candidates=candidates,
+                positions=positions,
+                n_original=n_original,
+                alpha=alpha,
+                mmr_lambda=mmr_lambda,
+                top_k=top_k,
+            )
+
+            elapsed_ms = (time.time() - t_start) * 1000
+
+            p_k, r_k, f1_k = prf_at_k(final_kps, golds, k=eval_k)
+            p_m, r_m, f1_m = prf_at_k(final_kps, golds, k=len(golds))
+            ild = ild_score(final_kps, self.reranker.embedder)
+
+            gold_stems = {stem(g) for g in golds}
+            sr = 1.0 if any(stem(p) in gold_stems for p in final_kps[:eval_k]) else 0.0
+
+            present_golds, absent_golds = split_present_absent(golds, document)
+            f1_pre = prf_at_k(final_kps, present_golds, k=eval_k)[2] if present_golds else float('nan')
+            f1_abs = prf_at_k(final_kps, absent_golds,  k=eval_k)[2] if absent_golds  else float('nan')
+
+            acc['p_k'].append(p_k);    acc['r_k'].append(r_k);    acc['f1_k'].append(f1_k)
+            acc['p_m'].append(p_m);    acc['r_m'].append(r_m);    acc['f1_m'].append(f1_m)
+            acc['ild'].append(ild);    acc['sr'].append(sr)
+            acc['runtime_ms'].append(elapsed_ms)
+            acc['f1_present'].append(f1_pre)
+            acc['f1_absent'].append(f1_abs)
+
+        return _summarize(acc, eval_k)
+
+    def alpha_sweep(
+        self,
+        records: list[dict],
+        alpha_values: list[float],
+        mmr_lambda: float,
+        top_k: int = None,
+    ) -> dict[float, dict]:
+        """
+        여러 α 값에 대해 run_score_fusion을 순차 실행.
+
+        Returns:
+            {alpha: 지표_dict} 형태의 dict
+        """
+        results = {}
+        for alpha in alpha_values:
+            results[alpha] = self.run_score_fusion(
+                records,
+                alpha=alpha,
+                mmr_lambda=mmr_lambda,
+                top_k=top_k,
+                desc=f'α={alpha:.1f}',
+            )
+        return results
+
 
 # ── 출력 유틸 ──────────────────────────────────────────────────────────
 

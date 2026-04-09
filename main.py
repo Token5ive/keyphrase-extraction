@@ -55,6 +55,9 @@ DEFAULT_CONFIG = {
     # Lambda sweep 범위
     'lambda_values': [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
 
+    # Alpha sweep 범위 (Exp 5 Score Fusion)
+    'alpha_values': [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+
     # 정성 분석 샘플 인덱스
     'qualitative_indices': [0, 1, 2],
 }
@@ -235,6 +238,125 @@ def exp3_lambda_sweep(cfg: dict, device: str) -> None:
     print(f'  → 그래프 저장: {fig_path}')
 
 
+def exp5_score_fusion(cfg: dict, device: str) -> None:
+    """
+    Exp 5: Score Fusion (beam score proxy + cosine similarity).
+
+    SciBART 생성 순서(position)를 beam score proxy로 활용하여
+    cosine similarity와 선형 결합한 fusion score로 재순위.
+
+    fusion_score(i) = α × beam_score(i) + (1−α) × cosine_sim(doc, c_i)
+    beam_score(i)   = 1 − position_i / (N_original − 1)
+
+    실험 구성:
+      Phase 1 — α sweep [0.0, ..., 1.0], λ=0.6 고정 (MPNet 인코더)
+      Phase 2 — 최적 α 고정, λ sweep [0.0, ..., 1.0] (비교용)
+
+    Baseline(α=1.0, λ=1.0)이 SciBART 원본 순서와 동일한지도 확인.
+    """
+    print('\n' + '='*60)
+    print('Exp 5: Score Fusion (beam score proxy + cosine sim)')
+    print('='*60)
+    out_dir = 'results/exp5_score_fusion'
+
+    preprocessor = Preprocessor(cfg['min_words'], cfg['max_words'])
+    # Exp 2에서 MPNet이 가장 우수한 인코더로 확인됨
+    reranker = _build_reranker(cfg['encoder_mpnet'], cfg, device)
+    evaluator = Evaluator(reranker, eval_k=cfg['eval_k'])
+
+    records_raw = _load_records(cfg)
+    records = preprocessor.apply_to_records(records_raw, use_preprocess=True)
+
+    K = cfg['eval_k']
+
+    # ── Phase 1: Alpha sweep (λ=0.6 고정) ──────────────────────────────
+    print(f'\n[Phase 1] α sweep (λ={cfg["mmr_lambda"]:.1f} 고정, MPNet)')
+    sweep = evaluator.alpha_sweep(records, cfg['alpha_values'], mmr_lambda=cfg['mmr_lambda'])
+
+    rows = []
+    for alpha, res in sweep.items():
+        rows.append({'alpha': alpha, **res})
+    df_alpha = pd.DataFrame(rows).set_index('alpha')
+    print('\n', df_alpha.to_string())
+    _save_results(df_alpha, out_dir, 'exp5_alpha_sweep')
+
+    best_alpha = max(sweep, key=lambda a: sweep[a][f'F1@{K}'])
+    print(f'\n  Best α = {best_alpha} (F1@{K} = {sweep[best_alpha][f"F1@{K}"]:.4f})')
+
+    # ── Phase 2: Lambda sweep (최적 α 고정) ────────────────────────────
+    print(f'\n[Phase 2] λ sweep (α={best_alpha:.1f} 고정, MPNet)')
+    lam_results = {}
+    for lam in cfg['lambda_values']:
+        lam_results[lam] = evaluator.run_score_fusion(
+            records,
+            alpha=best_alpha,
+            mmr_lambda=lam,
+            desc=f'α={best_alpha:.1f} λ={lam:.1f}',
+        )
+    rows2 = [{'lambda': lam, **res} for lam, res in lam_results.items()]
+    df_lambda = pd.DataFrame(rows2).set_index('lambda')
+    print('\n', df_lambda.to_string())
+    _save_results(df_lambda, out_dir, 'exp5_lambda_sweep')
+
+    best_lam = max(lam_results, key=lambda l: lam_results[l][f'F1@{K}'])
+    print(f'\n  Best λ = {best_lam} (F1@{K} = {lam_results[best_lam][f"F1@{K}"]:.4f})')
+
+    # ── Baseline 대비 요약 비교 ────────────────────────────────────────
+    print('\n[요약] Baseline vs Best Score Fusion')
+    baseline = evaluator.run_baseline(records, desc='Baseline')
+    best_fusion = evaluator.run_score_fusion(
+        records,
+        alpha=best_alpha,
+        mmr_lambda=best_lam,
+        desc=f'Best Fusion (α={best_alpha:.1f}, λ={best_lam:.1f})',
+    )
+    keybert_mmr = evaluator.run_pipeline(
+        records,
+        mmr_lambda=cfg['mmr_lambda'],
+        desc=f'KeyBERT+MMR (λ={cfg["mmr_lambda"]:.1f})',
+    )
+    summary = {
+        'Baseline (SciBART order)': baseline,
+        f'KeyBERT+MMR (λ={cfg["mmr_lambda"]:.1f})': keybert_mmr,
+        f'Score Fusion (α={best_alpha:.1f}, λ={best_lam:.1f})': best_fusion,
+    }
+    print_results_table(summary, K)
+    df_summary = pd.DataFrame(summary).T
+    _save_results(df_summary, out_dir, 'exp5_summary')
+
+    # ── 시각화 ────────────────────────────────────────────────────────
+    alphas   = list(sweep.keys())
+    f1k_vals = [sweep[a][f'F1@{K}'] for a in alphas]
+    ild_vals = [sweep[a]['ILD']      for a in alphas]
+
+    fig, axes = plt.subplots(1, 2, figsize=(13, 4))
+
+    axes[0].plot(alphas, f1k_vals, marker='o', label=f'F1@{K}')
+    axes[0].axhline(baseline[f'F1@{K}'], color='red', linestyle='--',
+                    alpha=0.7, label=f'Baseline F1@{K}={baseline[f"F1@{K}"]:.4f}')
+    axes[0].axvline(best_alpha, color='green', linestyle=':', alpha=0.6,
+                    label=f'best α={best_alpha}')
+    axes[0].set_xlabel('α (beam score weight)')
+    axes[0].set_ylabel(f'F1@{K}')
+    axes[0].set_title(f'Score Fusion: F1@{K} vs α (MPNet, λ={cfg["mmr_lambda"]:.1f})')
+    axes[0].legend()
+    axes[0].grid(True, alpha=0.3)
+
+    axes[1].plot(alphas, ild_vals, marker='^', color='orange', label='ILD')
+    axes[1].set_xlabel('α (beam score weight)')
+    axes[1].set_ylabel('ILD')
+    axes[1].set_title('Score Fusion: Diversity (ILD) vs α')
+    axes[1].legend()
+    axes[1].grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    os.makedirs(out_dir, exist_ok=True)
+    fig_path = os.path.join(out_dir, 'exp5_score_fusion.png')
+    plt.savefig(fig_path, dpi=150)
+    plt.close()
+    print(f'  → 그래프 저장: {fig_path}')
+
+
 def exp4_qualitative(cfg: dict, device: str) -> None:
     """
     Exp 4: 특정 샘플 정성 분석 — Ground Truth vs KeyBERT vs MMR 결과 비교.
@@ -283,9 +405,9 @@ def parse_args():
     parser = argparse.ArgumentParser(description='KPE 실험 스크립트')
     parser.add_argument(
         '--exp', nargs='+',
-        choices=['1', '2', '3', '4', 'all'],
+        choices=['1', '2', '3', '4', '5', 'all'],
         default=['all'],
-        help='실행할 실험 번호 (1 2 3 4 또는 all)',
+        help='실행할 실험 번호 (1 2 3 4 5 또는 all)',
     )
     parser.add_argument('--data_path',   default=DEFAULT_CONFIG['data_path'])
     parser.add_argument('--num_samples', type=int,   default=DEFAULT_CONFIG['num_samples'])
@@ -336,6 +458,9 @@ def main():
 
     if run_all or '4' in exps:
         exp4_qualitative(cfg, device)
+
+    if run_all or '5' in exps:
+        exp5_score_fusion(cfg, device)
 
     elapsed = time.time() - t0
     print(f'\n전체 실험 완료: {elapsed:.1f}s')

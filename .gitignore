@@ -211,3 +211,4 @@ keybert_mmr_reranker copy.ipynb
 reranker_baseline.ipynb
 basline_rank.ipynb
 CLAUDE.md
+model/
