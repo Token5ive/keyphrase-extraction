@@ -2,7 +2,7 @@ import json
 import os
 import re
 from dataclasses import dataclass
-from typing import List, Dict, Optional
+from typing import List, Optional
 
 import pandas as pd
 import torch
@@ -86,6 +86,23 @@ class CandidateGenerator:
                 absent.append(kp)
 
         return present, absent
+    
+    def normalize_gold_kps(self, value) -> List[str]:                    #
+        if isinstance(value, list):
+            return [str(v).strip() for v in value if str(v).strip()]
+
+        text = str(value).strip()
+        if not text:
+            return []
+
+        if ";" in text:
+            return [kp.strip() for kp in text.split(";") if kp.strip()]
+
+        found = re.findall(r"'([^']+)'", text)
+        if found:
+            return [kp.strip() for kp in found if kp.strip()]
+
+        return [text]
 
     @torch.no_grad()
     def generate_batch(self, texts):
@@ -131,24 +148,30 @@ class CandidateGenerator:
     def generate(self, dataset):
         results = []
 
-        for i in tqdm(range(0, len(dataset), self.config.batch_size)):
+        for i in tqdm(range(0, len(dataset), self.config.batch_size), desc="Generating"):
             batch = dataset[i:i + self.config.batch_size]
             texts = batch[self.config.input_col]
-
             preds = self.generate_batch(texts)
 
             for j in range(len(texts)):
                 row = dataset[i + j]
 
                 pred_kps = preds[j]
-                present, absent = self.split_present_absent(texts[j], pred_kps)
+                pred_present, pred_absent = self.split_present_absent(texts[j], pred_kps)
+
+                gold_target_kps = self.normalize_gold_kps(row.get("target_text", []))
+                gold_present_kps = self.normalize_gold_kps(row.get("present_kps", []))
+                gold_absent_kps = self.normalize_gold_kps(row.get("absent_kps", []))
 
                 results.append({
                     "id": row[self.config.id_col],
                     "source_text": texts[j],
                     "predicted_kps": pred_kps,
-                    "present_kps": present,
-                    "absent_kps": absent,
+                    "pred_present_kps": pred_present,
+                    "pred_absent_kps": pred_absent,
+                    "gold_target_kps": gold_target_kps,
+                    "gold_present_kps": gold_present_kps,
+                    "gold_absent_kps": gold_absent_kps,
                 })
 
         return results
@@ -156,14 +179,19 @@ class CandidateGenerator:
     def save(self, results):
         os.makedirs("./results", exist_ok=True)
 
-        # JSON
         with open(self.config.output_json_path, "w", encoding="utf-8") as f:
             json.dump(results, f, ensure_ascii=False, indent=2)
 
-        # CSV
         df = pd.DataFrame(results)
-        df["predicted_kps"] = df["predicted_kps"].apply(lambda x: " ; ".join(x))
-        df["present_kps"] = df["present_kps"].apply(lambda x: " ; ".join(x))
-        df["absent_kps"] = df["absent_kps"].apply(lambda x: " ; ".join(x))
+        list_cols = [
+            "predicted_kps",
+            "pred_present_kps",
+            "pred_absent_kps",
+            "gold_target_kps",
+            "gold_present_kps",
+            "gold_absent_kps",
+        ]
+        for col in list_cols:
+            df[col] = df[col].apply(lambda x: " ; ".join(x))
 
         df.to_csv(self.config.output_csv_path, index=False)
