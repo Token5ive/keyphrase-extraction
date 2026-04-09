@@ -57,6 +57,17 @@ def remove_no_abstract(df):
     return df[df["abstract"].notna() & (df["abstract"].str.strip() != "")]
 
 
+def remove_no_keyphrases(df):
+    """
+    keyphrases가 없거나 비어있는 문서 제거
+    
+    Note:
+        - 학습용 데이터에만 적용 (추론용에는 불필요)
+        - keyphrases가 None, 빈 리스트, NaN인 경우 모두 제거
+    """
+    return df[df["keyphrases"].notna() & (df["keyphrases"].apply(len) > 0)]
+
+
 def remove_long_docs(df, max_words):
     """긴 문서 제거 (IQR 기준)"""
     return df[df["abstract"].str.split().str.len() <= max_words]
@@ -137,6 +148,9 @@ def run_preprocessing(df, split="train"):
 
     df = remove_no_abstract(df)
     print(f"  초록 없는 문서 제거 후  : {len(df):,}개")
+    
+    df = remove_no_keyphrases(df)
+    print(f"  키프레이즈 없는 문서 제거 후: {len(df):,}개")
 
     df = remove_long_docs(df, t["max_words"])
     print(f"  긴 문서 제거 후         : {len(df):,}개")

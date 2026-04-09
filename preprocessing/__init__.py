@@ -3,6 +3,7 @@ from .run_pipeline import run_pipeline, run_inference_pipeline
 from .load_data import load_kp20k, load_inspec, load_dataset_by_name
 from .filter_data import (
     remove_no_abstract,
+    remove_no_keyphrases,
     remove_long_docs,
     remove_many_kp,
     remove_duplicate_docs,

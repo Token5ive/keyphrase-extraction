@@ -184,12 +184,13 @@ output/
 
 **학습용 (run_pipeline):**
 1. 초록 없는 문서 제거
-2. 긴 문서 제거 (IQR 기준)
-3. 중복 문서 제거
-4. KP 많은 문서 제거 (95th percentile)
-5. 긴 단어 KP 제거 (95th percentile)
-6. 긴 문자 KP 제거 (IQR 기준)
-7. 텍스트 정규화 (수식 → 숫자 → 공백)
+2. 키프레이즈 없는 문서 제거
+3. 긴 문서 제거 (IQR 기준)
+4. 중복 문서 제거
+5. KP 많은 문서 제거 (95th percentile)
+6. 긴 단어 KP 제거 (95th percentile)
+7. 긴 문자 KP 제거 (IQR 기준)
+8. 텍스트 정규화 (수식 → 숫자 → 공백)
 
 **추론용 (run_inference_pipeline):**
 1. 초록 없는 문서 제거
