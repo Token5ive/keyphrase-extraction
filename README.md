@@ -1,1 +1,1 @@
-# salience-detection
+# keyphrase-extraction
